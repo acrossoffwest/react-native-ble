@@ -15,8 +15,6 @@ import {
   Platform,
 } from 'react-native';
 
-import Buffer from 'buffer';
-
 export type Peripheral = PeripheralWithoutConnectInfo & {
   connected?: boolean;
   connecting?: boolean;
@@ -84,16 +82,20 @@ export default class BleService {
     this._listeners = [];
     this._events = new Events();
     this._peripherals = new Map();
-    BleManager.start({showAlert: false})
-      .then(() => {
-        this.runEvent(this._events.bleManagerStartSuccess);
-        console.debug('[BleService]: BleManager started.');
-      })
-      .catch((err: any) => {
-        this.runEvent(this._events.bleManagerStartError);
-        console.debug('[BleService]: BeManager could not be started.', err);
-      });
-    this.handle_permissions();
+
+    console.debug('BleManager', BleManager);
+  }
+
+  async start () {
+    try {
+      await BleManager.start({showAlert: false});
+      this.runEvent(this._events.bleManagerStartSuccess);
+      console.debug('[BleService]: BleManager started.');
+    } catch (err) {
+      this.runEvent(this._events.bleManagerStartError);
+      console.debug('[BleService]: BeManager could not be started.', err);
+    }
+    await this.handle_permissions();
   }
 
   setEvents(events: Events) {
@@ -101,35 +103,34 @@ export default class BleService {
     this.setupListiners(events);
   }
 
-  handle_permissions() {
+  async handle_permissions() {
     // po requestach, jak sie zrobi .then() nastepnie gdy (resoult) cos zwroci to oznacza, że ma perma jak nie to nie ma.
     if (Platform.OS === 'android') {
       if (Platform.Version >= 31)
-        PermissionsAndroid.requestMultiple([
+        await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
         ]);
       else if (Platform.Version >= 23)
-        PermissionsAndroid.request(
+        await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         );
     }
   }
 
-  scan() {
+  async scan() {
     this.runEvent(this._events.bleManagerStartScan);
     this.clearPeripherals();
-    BleManager.scan([], 3, false, {
-      matchMode: BleScanMatchMode.Sticky,
-      scanMode: BleScanMode.LowLatency,
-      callbackType: BleScanCallbackType.AllMatches,
-    })
-      .then(() => {
-        console.debug('[startScan] scan promise returned successfully.');
+    try {
+      await BleManager.scan([], 3, false, {
+        matchMode: BleScanMatchMode.Sticky,
+        scanMode: BleScanMode.LowLatency,
+        callbackType: BleScanCallbackType.AllMatches,
       })
-      .catch((err: any) => {
-        console.error('[startScan] ble scan returned in error', err);
-      });
+      console.debug('[startScan] scan promise returned successfully.');
+    } catch (err) {
+      console.error('[startScan] ble scan returned in error', err);
+    }
   }
 
   destroy() {
